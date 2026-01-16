@@ -11,63 +11,91 @@
     <div id="map"></div>
 
     <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyD0kkOQYlPMdYMNlqrmOI7AWhhTJC_MSlA&callback=initMap&v=weekly" defer></script>
+    
     <script src="https://unpkg.com/@googlemaps/markerclusterer/dist/index.min.js"></script>
 
     <script>
         let map;
+        let markerCluster;
+        let markers = [];
         let infoWindow;
 
         async function initMap() {
+            // 地図の初期化（東京中心）
             map = new google.maps.Map(document.getElementById("map"), {
-                zoom: 10,
+                zoom: 12,
                 center: { lat: 35.6812, lng: 139.7671 },
-                mapId: "YOUR_MAP_ID"
+                mapId: "DEMO_MAP_ID" // 独自のスタイルを使う場合に必要
             });
 
             infoWindow = new google.maps.InfoWindow();
 
-            // 1. 軽量化したJSONファイルを読み込む
+            // クラスター管理者の初期化
+            markerCluster = new markerClusterer.MarkerClusterer({ map, markers: [] });
+
+            // 地図が動いた（ズーム・移動）後のイベント
+            map.addListener("idle", () => {
+                fetchPointsInBounds();
+            });
+        }
+
+        async function fetchPointsInBounds() {
+            const bounds = map.getBounds();
+            if (!bounds) return;
+
+            const ne = bounds.getNorthEast();
+            const sw = bounds.getSouthWest();
+
+            // Renderで発行されたURLに書き換え
+            const baseUrl = "https://tabimap-api.onrender.com"; 
+            const url = `${baseUrl}/points?west=${sw.lng()}&south=${sw.lat()}&east=${ne.lng()}&north=${ne.lat()}`;
+
             try {
-                const response = await fetch("points_min.json"); // GitHub Pages上のパス
-                const points = await response.json();
-                
-                // 2. マーカーを一気に作成
-                const markers = points.map(pt => {
-                    const [lng, lat] = pt.g;
-                    const { n, t, d } = pt.p;
-
-                    const color = (t === "BUS") ? "#1E90FF" : "#FF4500";
-
-                    const marker = new google.maps.Marker({
-                        position: { lat, lng },
-                        title: n,
-                        icon: {
-                            path: google.maps.SymbolPath.CIRCLE,
-                            fillColor: color,
-                            fillOpacity: 0.8,
-                            strokeWeight: 1,
-                            scale: 6 // 少し小さくすると描画が軽くなります
-                        }
-                    });
-
-                    marker.addListener("click", () => {
-                        infoWindow.setContent(`<strong>${n}</strong><hr>${d}`);
-                        infoWindow.open(map, marker);
-                    });
-
-                    return marker;
-                });
-
-                // 3. クラスターに追加（これが一番重要：描画負荷を下げてくれます）
-                new markerClusterer.MarkerClusterer({ 
-                    map, 
-                    markers,
-                    algorithm: new markerClusterer.SuperClusterAlgorithm({ radius: 60 }) 
-                });
-
-            } catch (e) {
-                console.error("データの読み込みに失敗しました", e);
+                const response = await fetch(url);
+                const geojsonData = await response.json(); // ここで直接JSONとして受け取る
+                updateMarkers(geojsonData.features);
+            } catch (error) {
+                console.error("Fetch error:", error);
             }
+        }
+
+        function updateMarkers(features) {
+            // 古いマーカーを削除
+            markers.forEach(m => m.setMap(null));
+            markers = [];
+            markerCluster.clearMarkers();
+
+            // 新しいマーカーを作成
+            markers = features.map(feature => {
+                const [lng, lat] = feature.geometry.coordinates;
+                const { name, type, description } = feature.properties;
+
+                // 種類によって色を変える
+                const color = (type === "BUS") ? "#1E90FF" : "#FF4500"; // バス:青, 鉄道:赤
+
+                const marker = new google.maps.Marker({
+                    position: { lat, lng },
+                    title: name, // ホバー時に表示される
+                    icon: {
+                        path: google.maps.SymbolPath.CIRCLE,
+                        fillColor: color,
+                        fillOpacity: 0.8,
+                        strokeWeight: 1,
+                        scale: 8
+                    }
+                });
+
+                // クリックイベント
+                marker.addListener("click", () => {
+                    infoWindow.setContent(`<strong>${name}</strong><hr>${description}`);
+                    infoWindow.open(map, marker);
+                });
+
+                return marker;
+            });
+
+            // クラスターに追加
+            markerCluster.addMarkers(markers);
         }
     </script>
 </body>
