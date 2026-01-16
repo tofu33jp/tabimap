@@ -25,6 +25,8 @@
             map = new google.maps.Map(document.getElementById("map"), {
                 zoom: 12,
                 center: { lat: 35.6812, lng: 139.7671 },
+                scaleControl: true,
+                gestureHandling: 'greedy',
                 mapId: "DEMO_MAP_ID" // 独自のスタイルを使う場合に必要
             });
 
@@ -35,7 +37,7 @@
 
             // 地図が動いた（ズーム・移動）後のイベント
             map.addListener("idle", () => {
-                if (map.getZoom() < 14) { // ズームレベルが13（街が見える程度）より小さければ読み込まない
+                if (map.getZoom() < 13) { // ズームレベルが13（街が見える程度）より小さければ読み込まない
                     console.log("Too zoomed out");
                     return;
                 }
