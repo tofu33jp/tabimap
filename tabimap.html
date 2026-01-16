@@ -35,6 +35,10 @@
 
             // 地図が動いた（ズーム・移動）後のイベント
             map.addListener("idle", () => {
+                if (map.getZoom() < 13) { // ズームレベルが13（街が見える程度）より小さければ読み込まない
+                    console.log("Too zoomed out");
+                    return;
+                }
                 fetchPointsInBounds();
             });
         }
