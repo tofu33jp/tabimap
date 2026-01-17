@@ -10,6 +10,25 @@
 <body>
     <div id="map"></div>
 
+    <div id="legend">
+        <h4>凡例</h4>
+        <div id="legend-content"></div>
+    </div>
+
+    <style>
+        #legend {
+            background: white;
+            padding: 10px;
+            margin: 10px;
+            border: 1px solid #ccc;
+            font-family: Arial, sans-serif;
+            font-size: 12px;
+            line-height: 1.5;
+        }
+        .legend-item { display: flex; align-items: center; margin-bottom: 5px; }
+        .color-box { width: 15px; height: 15px; margin-right: 8px; border-radius: 50%; }
+    </style>
+
     <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyD0kkOQYlPMdYMNlqrmOI7AWhhTJC_MSlA&callback=initMap&v=weekly" defer></script>
     
     <script src="https://unpkg.com/@googlemaps/markerclusterer/dist/index.min.js"></script>
@@ -26,7 +45,7 @@
                 zoom: 12,
                 center: { lat: 35.6812, lng: 139.7671 },
                 scaleControl: true,
-                gestureHandling: 'greedy',
+                gestureHandling: "greedy",
                 mapId: "DEMO_MAP_ID" // 独自のスタイルを使う場合に必要
             });
 
@@ -43,6 +62,21 @@
                 }
                 fetchPointsInBounds();
             });
+
+            // 凡例を自動生成して地図上に配置
+            const legendContent = document.getElementById("legend-content");
+            for (const key in TYPE_CONFIG) {
+                if (key === "DEFAULT") continue;
+                const item = TYPE_CONFIG[key];
+                legendContent.innerHTML += `
+                    <div class="legend-item">
+                        <div class="color-box" style="background-color: ${item.color}"></div>
+                        <span>${item.label}</span>
+                    </div>
+                `;
+            }
+            // Google Mapsの右下に配置
+            map.controls[google.maps.ControlPosition.RIGHT_BOTTOM].push(document.getElementById("legend"));
         }
 
         async function fetchPointsInBounds() {
@@ -65,6 +99,16 @@
             }
         }
 
+        // 1. 種類ごとの色設定を「辞書（オブジェクト）」として定義
+        const TYPE_CONFIG = {
+                "RAILWAY(JR)": { color: "#FF4B00", label: "鉄道(JR)" },
+                "RAILWAY(OTHER)":    { color: "#F6AA00", label: "鉄道(他)" },
+                "EXBUS":    { color: "#03AF7A", label: "高速バス" },
+                "BUS":     { color: "#005AFF", label: "路線バス" },
+                "PORT":   { color: "#804000", label: "空港・旅客港" },
+                "OTHER":   { color: "#990099", label: "観光地" },
+                "DEFAULT": { color: "#7F7F7F", label: "その他" }
+            };
         function updateMarkers(features) {
             // 古いマーカーを削除
             markers.forEach(m => m.setMap(null));
@@ -76,8 +120,11 @@
                 const [lng, lat] = feature.geometry.coordinates;
                 const { name, type, description } = feature.properties;
 
+                // 2. 設定表から色を取得。登録がない場合はDEFAULTを使う
+                const config = TYPE_CONFIG[type] || TYPE_CONFIG["DEFAULT"];
+                const color = config.color;
                 // 種類によって色を変える
-                const color = (type === "BUS") ? "#1E90FF" : "#FF4500"; // バス:青, 鉄道:赤
+                // const color = (type === "BUS") ? "#1E90FF" : "#FF4500"; // バス:青, 鉄道:赤
 
                 const marker = new google.maps.Marker({
                     position: { lat, lng },
@@ -85,15 +132,16 @@
                     icon: {
                         path: google.maps.SymbolPath.CIRCLE,
                         fillColor: color,
-                        fillOpacity: 0.8,
-                        strokeWeight: 1,
+                        fillOpacity: 1.0,
+                        strokeColor: "white",
+                        strokeWeight: 2,
                         scale: 8
                     }
                 });
 
                 // クリックイベント
                 marker.addListener("click", () => {
-                    infoWindow.setContent(`<strong>${name}</strong><hr>${description}`);
+                    infoWindow.setContent(`<strong>${name}</strong> (${config.label})<hr>${description}`);
                     infoWindow.open(map, marker);
                 });
 
