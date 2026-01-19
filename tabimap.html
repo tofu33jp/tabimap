@@ -104,7 +104,7 @@
                 "RAILWAY(JR)": { color: "#FF4B00", label: "鉄道(JR)" },
                 "RAILWAY(OTHER)":    { color: "#F6AA00", label: "鉄道(他)" },
                 "EXBUS":    { color: "#03AF7A", label: "高速バス" },
-                "BUS":     { color: "#005AFF", label: "路線バス" },
+                "BUS":     { color: "#005AFF", label: "路線バス", weight: 4 },
                 "PORT":   { color: "#804000", label: "空港・旅客港" },
                 "OTHER":   { color: "#990099", label: "観光地" },
                 "DEFAULT": { color: "#7F7F7F", label: "その他" }
@@ -151,6 +151,54 @@
             // クラスターに追加
             markerCluster.addMarkers(markers);
         }
+        
+        let polylines = []; // 描画中の線を保持する配列
+        async function fetchLinesInBounds() {
+            const bounds = map.getBounds();
+            const ne = bounds.getNorthEast();
+            const sw = bounds.getSouthWest();
+        
+            const baseUrl = "https://tabimap-api.onrender.com"; 
+            const url = `${baseUrl}/lines?west=${sw.lng()}&south=${sw.lat()}&east=${ne.lng()}&north=${ne.lat()}`;
+        
+            try {
+                const response = await fetch(url);
+                const geojsonData = await response.json();
+                updateLines(geojsonData.features);
+            } catch (error) {
+                console.error("Lines fetch error:", error);
+            }
+        }
+        
+        function updateLines(features) {
+            polylines.forEach(p => p.setMap(null));
+            polylines = [];
+        
+            polylines = features.map(feature => {
+                const coords = feature.geometry.coordinates.map(c => ({ lat: c[1], lng: c[0] }));
+                const type = feature.properties.type;
+                const config = TYPE_CONFIG[type] || { color: "#7F7F7F", weight: 2 };
+        
+                const polyline = new google.maps.Polyline({
+                    path: coords,
+                    geodesic: true,
+                    strokeColor: config.color,
+                    strokeOpacity: 0.7,
+                    strokeWeight: config.weight,
+                    map: map
+                });
+        
+                // 路線をクリックしたときに路線名を表示するなどの設定も可能
+                polyline.addListener("click", (e) => {
+                    infoWindow.setContent(`<strong>${feature.properties.name}</strong>`);
+                    infoWindow.setPosition(e.latLng);
+                    infoWindow.open(map);
+                });
+        
+                return polyline;
+            });
+        }
+                
     </script>
 </body>
 </html>
