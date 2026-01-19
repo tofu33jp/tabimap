@@ -109,7 +109,7 @@
             const sw = bounds.getSouthWest();
 
             const baseUrl = "https://tabimap-api.onrender.com"; 
-            const url = `${baseUrl}/points?west=${sw.lng()}&south=${sw.lat()}&east=${ne.lng()}&north=${ne.lat()}`;
+            const url = `${baseUrl}/lines?west=${sw.lng()}&south=${sw.lat()}&east=${ne.lng()}&north=${ne.lat()}`;
 
             try {
                 const response = await fetch(url);
