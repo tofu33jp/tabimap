@@ -176,8 +176,7 @@
         
             polylines = features.map(feature => {
                 const coords = feature.geometry.coordinates.map(c => ({ lat: c[1], lng: c[0] }));
-                const type = feature.properties.type;
-                const config = TYPE_CONFIG[type] || { color: "#7F7F7F", weight: 2 };
+                const config = TYPE_CONFIG["BUS"] || { color: "#7F7F7F", weight: 2 };
         
                 const polyline = new google.maps.Polyline({
                     path: coords,
