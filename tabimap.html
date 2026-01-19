@@ -136,7 +136,8 @@
                         fillOpacity: 1.0,
                         strokeColor: "white",
                         strokeWeight: 2,
-                        scale: 8
+                        scale: 8,
+                        zIndex: 2
                     }
                 });
 
@@ -184,7 +185,9 @@
                     geodesic: true,
                     strokeColor: config.color,
                     strokeOpacity: 0.7,
-                    strokeWeight: config.weight
+                    strokeWeight: config.weight,
+                    map: map,
+                    zIndex: 1
                 });
         
                 return polyline;
