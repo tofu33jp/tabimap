@@ -179,7 +179,7 @@
         }
         
         let polylines = []; // 描画中の線を保持する配列
-        let selectedPolyline = null; // ★現在選択（クリック）されているラインを保持
+        let selectedFeatureId = null; // ★現在選択（クリック）されているラインを保持
         async function fetchLinesInBounds() {
             const bounds = map.getBounds();
             const ne = bounds.getNorthEast();
@@ -200,15 +200,19 @@
         function updateLines(features) {
             polylines.forEach(p => p.setMap(null));
             polylines = [];
-            selectedPolyline = null; // 初期化
+            selectedFeatureId = null;
 
             if (!features) return;
 
-            features.forEach(feature => {
+            features.forEach((feature, index) => {
                 if (!feature.geometry || !feature.geometry.coordinates) return;
 
                 const config = TYPE_CONFIG["BUS"];
                 const geomType = feature.geometry.type;
+                
+                // ★ 路線を特定するためのユニークな値（名前、あるいはID）
+                const featureId = feature.properties.ix;
+
                 const convertCoords = (coords) => coords.map(c => ({ lat: c[1], lng: c[0] }));
 
                 let paths = [];
@@ -227,43 +231,51 @@
                         strokeWeight: config.weight || 3,
                         map: map,
                         zIndex: 1,
-                        // 後で元のスタイルに戻せるように、独自プロパティとして保存しておく
+                        // ★ 独自プロパティとして情報を保持させる
+                        featureId: featureId, 
                         originalConfig: config 
                     });
 
                     // クリックイベント
                     polyline.addListener("click", (e) => {
-                        // 1. すでに選択されているラインがあれば、元のスタイルに戻す
-                        if (selectedPolyline) {
-                            selectedPolyline.setOptions({
-                                strokeColor: selectedPolyline.originalConfig.color,
-                                strokeWeight: selectedPolyline.originalConfig.weight || 3,
-                                strokeOpacity: 0.7,
-                                zIndex: 1
-                            });
-                        }
-
-                        // 2. 今回クリックされたラインを強調（ハイライト）する
-                        polyline.setOptions({
-                            strokeColor: "#000000", // 黒など、目立つ色に変更
-                            strokeWeight: 8,       // 太くする
-                            strokeOpacity: 1.0,    // 不透明にする
-                            zIndex: 2            // 最前面に持ってくる
-                        });
-
-                        // 3. 選択中として記憶
-                        selectedPolyline = polyline;
-
-                        // // 4. 情報ウィンドウの表示
-                        // infoWindow.setContent(`<strong>${feature.properties.name || "名称不明"}</strong>`);
-                        // infoWindow.setPosition(e.latLng);
-                        // infoWindow.open(map);
+                        highlightFeature(featureId, e.latLng, feature.properties);
                     });
 
                     polylines.push(polyline);
                 });
             });
         }
+
+        // ★ 同じIDを持つ全てのラインをハイライトする関数
+        function highlightFeature(id, latLng, properties) {
+            // 1. まず全てのラインを元のスタイルに戻す
+            polylines.forEach(p => {
+                p.setOptions({
+                    strokeColor: p.originalConfig.color,
+                    strokeWeight: p.originalConfig.weight || 3,
+                    strokeOpacity: 0.7,
+                    zIndex: 1
+                });
+            });
+
+            // 2. 同じID（featureId）を持つラインだけを全て強調する
+            polylines.filter(p => p.featureId === id).forEach(p => {
+                p.setOptions({
+                    strokeColor: "#000000", // ハイライト色
+                    strokeWeight: 8,
+                    strokeOpacity: 1.0,
+                    zIndex: 100
+                });
+            });
+
+            selectedFeatureId = id;
+
+            // 3. 情報表示
+            // infoWindow.setContent(`<strong>${properties.name || "名称不明"}</strong>`);
+            // infoWindow.setPosition(latLng);
+            // infoWindow.open(map);
+        }
+
 
         let polygons = [];
         async function fetchPolygonsInBounds() {
