@@ -65,6 +65,20 @@
                 fetchPolygonsInBounds();
             });
 
+            // 地図の背景をクリックしたらハイライトを解除
+            map.addListener("click", () => {
+                if (selectedPolyline) {
+                    selectedPolyline.setOptions({
+                        strokeColor: selectedPolyline.originalConfig.color,
+                        strokeWeight: selectedPolyline.originalConfig.weight || 3,
+                        strokeOpacity: 0.7,
+                        zIndex: 1
+                    });
+                    selectedPolyline = null;
+                    infoWindow.close();
+                }
+            });
+
             // 凡例を自動生成して地図上に配置
             const legendContent = document.getElementById("legend-content");
             for (const key in TYPE_CONFIG) {
@@ -147,7 +161,7 @@
                         strokeColor: "white",
                         strokeWeight: 2,
                         scale: 8,
-                        zIndex: 2
+                        zIndex: 3
                     }
                 });
 
@@ -165,6 +179,7 @@
         }
         
         let polylines = []; // 描画中の線を保持する配列
+        let selectedPolyline = null; // ★現在選択（クリック）されているラインを保持
         async function fetchLinesInBounds() {
             const bounds = map.getBounds();
             const ne = bounds.getNorthEast();
@@ -185,22 +200,68 @@
         function updateLines(features) {
             polylines.forEach(p => p.setMap(null));
             polylines = [];
-        
-            polylines = features.map(feature => {
-                const coords = feature.geometry.coordinates.map(c => ({ lat: c[1], lng: c[0] }));
-                const config = TYPE_CONFIG["BUS"] || { color: "#7F7F7F", weight: 2 };
-        
-                const polyline = new google.maps.Polyline({
-                    path: coords,
-                    geodesic: true,
-                    strokeColor: config.color,
-                    strokeOpacity: 0.7,
-                    strokeWeight: config.weight,
-                    map: map,
-                    zIndex: 1
+            selectedPolyline = null; // 初期化
+
+            if (!features) return;
+
+            features.forEach(feature => {
+                if (!feature.geometry || !feature.geometry.coordinates) return;
+
+                const config = TYPE_CONFIG["BUS"];
+                const geomType = feature.geometry.type;
+                const convertCoords = (coords) => coords.map(c => ({ lat: c[1], lng: c[0] }));
+
+                let paths = [];
+                if (geomType === "LineString") {
+                    paths.push(convertCoords(feature.geometry.coordinates));
+                } else if (geomType === "MultiLineString") {
+                    feature.geometry.coordinates.forEach(subCoords => paths.push(convertCoords(subCoords)));
+                }
+
+                paths.forEach(path => {
+                    const polyline = new google.maps.Polyline({
+                        path: path,
+                        geodesic: true,
+                        strokeColor: config.color,
+                        strokeOpacity: 0.7,
+                        strokeWeight: config.weight || 3,
+                        map: map,
+                        zIndex: 1,
+                        // 後で元のスタイルに戻せるように、独自プロパティとして保存しておく
+                        originalConfig: config 
+                    });
+
+                    // クリックイベント
+                    polyline.addListener("click", (e) => {
+                        // 1. すでに選択されているラインがあれば、元のスタイルに戻す
+                        if (selectedPolyline) {
+                            selectedPolyline.setOptions({
+                                strokeColor: selectedPolyline.originalConfig.color,
+                                strokeWeight: selectedPolyline.originalConfig.weight || 3,
+                                strokeOpacity: 0.7,
+                                zIndex: 1
+                            });
+                        }
+
+                        // 2. 今回クリックされたラインを強調（ハイライト）する
+                        polyline.setOptions({
+                            strokeColor: "#000000", // 黒など、目立つ色に変更
+                            strokeWeight: 8,       // 太くする
+                            strokeOpacity: 1.0,    // 不透明にする
+                            zIndex: 2            // 最前面に持ってくる
+                        });
+
+                        // 3. 選択中として記憶
+                        selectedPolyline = polyline;
+
+                        // // 4. 情報ウィンドウの表示
+                        // infoWindow.setContent(`<strong>${feature.properties.name || "名称不明"}</strong>`);
+                        // infoWindow.setPosition(e.latLng);
+                        // infoWindow.open(map);
+                    });
+
+                    polylines.push(polyline);
                 });
-        
-                return polyline;
             });
         }
 
@@ -230,6 +291,7 @@
             features.forEach(feature => {
                 if (!feature.geometry || !feature.geometry.coordinates) return;
 
+                const { name, description } = feature.properties;
                 // Polygon または MultiPolygon の座標変換
                 const geomType = feature.geometry.type;
                 const level = feature.properties.level;
@@ -252,6 +314,7 @@
 
                 const polygon = new google.maps.Polygon({
                     paths: paths,
+                    title: name, // ホバー時に表示される
                     strokeColor: style.color,
                     strokeOpacity: 0.8,
                     strokeWeight: 1,
@@ -261,12 +324,12 @@
                     zIndex: 0 // ポリゴンは一番下に表示
                 });
 
-                // // クリック時に情報を表示
-                // polygon.addListener("click", (e) => {
-                //     infoWindow.setContent(`<strong>エリア情報</strong><br>レベル: ${level}`);
-                //     infoWindow.setPosition(e.latLng);
-                //     infoWindow.open(map);
-                // });
+                // クリック時に情報を表示
+                polygon.addListener("click", (e) => {
+                    infoWindow.setContent(`<strong>${name}</strong><hr>${description}`);
+                    infoWindow.setPosition(e.latLng);
+                    infoWindow.open(map);
+                });
 
                 polylines.push(polygon); // 配列に入れて管理
             });
