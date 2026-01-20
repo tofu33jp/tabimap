@@ -67,14 +67,17 @@
 
             // 地図の背景をクリックしたらハイライトを解除
             map.addListener("click", () => {
-                if (selectedPolyline) {
-                    selectedPolyline.setOptions({
-                        strokeColor: selectedPolyline.originalConfig.color,
-                        strokeWeight: selectedPolyline.originalConfig.weight || 3,
-                        strokeOpacity: 0.7,
-                        zIndex: 1
+                if (selectedFeatureId !== null) {
+                    // 全ての路線のスタイルを元に戻す
+                    polylines.forEach(p => {
+                        p.setOptions({
+                            strokeColor: p.originalConfig.color,
+                            strokeWeight: p.originalConfig.weight || 3,
+                            strokeOpacity: 0.7,
+                            zIndex: 1
+                        });
                     });
-                    selectedPolyline = null;
+                    selectedFeatureId = null; // 選択状態を解除
                     infoWindow.close();
                 }
             });
