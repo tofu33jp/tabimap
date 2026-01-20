@@ -56,12 +56,13 @@
 
             // 地図が動いた（ズーム・移動）後のイベント
             map.addListener("idle", () => {
-                if (map.getZoom() < 13) { // ズームレベルが13（街が見える程度）より小さければ読み込まない
+                if (map.getZoom() < 12) { // ズームレベルが13（街が見える程度）より小さければ読み込まない
                     console.log("Too zoomed out");
                     return;
                 }
                 fetchPointsInBounds();
                 fetchLinesInBounds();
+                fetchPolygonsInBounds();
             });
 
             // 凡例を自動生成して地図上に配置
@@ -110,6 +111,15 @@
                 "OTHER":   { color: "#990099", label: "観光地" },
                 "DEFAULT": { color: "#7F7F7F", label: "その他" }
             };
+        // レベルごとの色の塗り分け設定
+        const LEVEL_STYLE = {
+            "A": { color: "#FF0000", opacity: 0.8 }, // 濃い赤
+            "B": { color: "#FF0000", opacity: 0.6 }, // 中間の赤
+            "C": { color: "#FF0000", opacity: 0.4 }, // 薄い赤
+            "D": { color: "#FF0000", opacity: 0.2 }, // 薄い赤
+            "E": { color: "#FF0000", opacity: 0 }, // 薄い赤
+            "DEFAULT": { color: "#808080", opacity: 0.1 }
+        };
         function updateMarkers(features) {
             // 古いマーカーを削除
             markers.forEach(m => m.setMap(null));
@@ -193,7 +203,75 @@
                 return polyline;
             });
         }
-                
+
+        let polygons = [];
+        async function fetchPolygonsInBounds() {
+            const bounds = map.getBounds();
+            if (!bounds) return;
+
+            const ne = bounds.getNorthEast();
+            const sw = bounds.getSouthWest();
+            const baseUrl = "https://tabimap-api.onrender.com"; 
+            const url = `${baseUrl}/polygons?west=${sw.lng()}&south=${sw.lat()}&east=${ne.lng()}&north=${ne.lat()}`;
+
+            try {
+                const response = await fetch(url);
+                const geojsonData = await response.json();
+                updatePolygons(geojsonData.features);
+            } catch (error) {
+                console.error("Polygons fetch error:", error);
+            }
+        }
+
+        function updatePolygons(features) {
+            polygons.forEach(p => p.setMap(null));
+            polygons = [];
+
+            features.forEach(feature => {
+                if (!feature.geometry || !feature.geometry.coordinates) return;
+
+                // Polygon または MultiPolygon の座標変換
+                const geomType = feature.geometry.type;
+                const level = feature.properties.level;
+                const style = LEVEL_STYLE[level] || LEVEL_STYLE["DEFAULT"];
+
+                // Google Maps 形式に変換（[lng, lat] -> {lat, lng}）
+                // Polygon は配列が一段深い（[外周, 穴, 穴...]）ことに注意
+                const processCoords = (coords) => coords.map(ring => 
+                    ring.map(c => ({ lat: c[1], lng: c[0] }))
+                );
+
+                let paths = [];
+                if (geomType === "Polygon") {
+                    paths = processCoords(feature.geometry.coordinates);
+                } else if (geomType === "MultiPolygon") {
+                    feature.geometry.coordinates.forEach(polyCoords => {
+                        paths.push(...processCoords(polyCoords));
+                    });
+                }
+
+                const polygon = new google.maps.Polygon({
+                    paths: paths,
+                    strokeColor: style.color,
+                    strokeOpacity: 0.8,
+                    strokeWeight: 1,
+                    fillColor: style.color,
+                    fillOpacity: style.opacity,
+                    map: map,
+                    zIndex: 0 // ポリゴンは一番下に表示
+                });
+
+                // // クリック時に情報を表示
+                // polygon.addListener("click", (e) => {
+                //     infoWindow.setContent(`<strong>エリア情報</strong><br>レベル: ${level}`);
+                //     infoWindow.setPosition(e.latLng);
+                //     infoWindow.open(map);
+                // });
+
+                polylines.push(polygon); // 配列に入れて管理
+            });
+        }
+
     </script>
 </body>
 </html>
