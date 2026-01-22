@@ -65,23 +65,6 @@
                 fetchPolygonsInBounds();
             });
 
-            // 地図の背景をクリックしたらハイライトを解除
-            map.addListener("click", () => {
-                if (selectedFeatureId !== null) {
-                    // 全ての路線のスタイルを元に戻す
-                    polylines.forEach(p => {
-                        p.setOptions({
-                            strokeColor: p.originalConfig.color,
-                            strokeWeight: p.originalConfig.weight || 3,
-                            strokeOpacity: 0.7,
-                            zIndex: 1
-                        });
-                    });
-                    selectedFeatureId = null; // 選択状態を解除
-                    infoWindow.close();
-                }
-            });
-
             // 凡例を自動生成して地図上に配置
             const legendContent = document.getElementById("legend-content");
             for (const key in TYPE_CONFIG) {
@@ -125,16 +108,16 @@
                 "EXBUS":    { color: "#03AF7A", label: "高速バス" },
                 "BUS":     { color: "#005AFF", label: "路線バス", weight: 4 },
                 "PORT":   { color: "#804000", label: "空港・旅客港" },
-                "OTHER":   { color: "#990099", label: "観光地" },
+                "HOTEL":   { color: "#990099", label: "宿泊施設" },
                 "DEFAULT": { color: "#7F7F7F", label: "その他" }
             };
         // レベルごとの色の塗り分け設定
         const LEVEL_STYLE = {
-            "A": { color: "#FF0000", opacity: 0.6 }, // 濃い赤
-            "B": { color: "#FF0000", opacity: 0.45 }, // 中間の赤
-            "C": { color: "#FF0000", opacity: 0.3 }, // 薄い赤
-            "D": { color: "#FF0000", opacity: 0.15 }, // 薄い赤
-            "E": { color: "#FF0000", opacity: 0 }, // 薄い赤
+            "A": { color: "#FF0000", opacity: 0.4 }, // 濃い赤
+            "B": { color: "#FF0000", opacity: 0.2 }, // 中間の赤
+            "C": { color: "#FF0000", opacity: 0 }, // 薄い赤
+            "D": { color: "#0000FF", opacity: 0.2 }, // 薄い赤
+            "E": { color: "#0000FF", opacity: 0.4 }, // 薄い赤
             "DEFAULT": { color: "#808080", opacity: 0.1 }
         };
         function updateMarkers(features) {
@@ -182,7 +165,6 @@
         }
         
         let polylines = []; // 描画中の線を保持する配列
-        let selectedFeatureId = null; // ★現在選択（クリック）されているラインを保持
         async function fetchLinesInBounds() {
             const bounds = map.getBounds();
             const ne = bounds.getNorthEast();
@@ -203,83 +185,23 @@
         function updateLines(features) {
             polylines.forEach(p => p.setMap(null));
             polylines = [];
-            selectedFeatureId = null;
-
-            if (!features) return;
-
-            features.forEach((feature, index) => {
-                if (!feature.geometry || !feature.geometry.coordinates) return;
-
-                console.log("ix value:", feature.properties.ix);
-                const config = TYPE_CONFIG["BUS"];
-                const geomType = feature.geometry.type;
-                
-                // ★ 路線を特定するためのユニークな値（名前、あるいはID）
-                const featureId = feature.properties.ix;
-
-                const convertCoords = (coords) => coords.map(c => ({ lat: c[1], lng: c[0] }));
-
-                let paths = [];
-                if (geomType === "LineString") {
-                    paths.push(convertCoords(feature.geometry.coordinates));
-                } else if (geomType === "MultiLineString") {
-                    feature.geometry.coordinates.forEach(subCoords => paths.push(convertCoords(subCoords)));
-                }
-
-                paths.forEach(path => {
-                    const polyline = new google.maps.Polyline({
-                        path: path,
-                        geodesic: true,
-                        strokeColor: config.color,
-                        strokeOpacity: 0.7,
-                        strokeWeight: config.weight || 3,
-                        map: map,
-                        zIndex: 1,
-                        // ★ 独自プロパティとして情報を保持させる
-                        featureId: featureId, 
-                        originalConfig: config 
-                    });
-
-                    // クリックイベント
-                    polyline.addListener("click", (e) => {
-                        highlightFeature(featureId, e.latLng, feature.properties);
-                    });
-
-                    polylines.push(polyline);
-                });
-            });
-        }
-
-        // ★ 同じIDを持つ全てのラインをハイライトする関数
-        function highlightFeature(id, latLng, properties) {
-            // 1. まず全てのラインを元のスタイルに戻す
-            polylines.forEach(p => {
-                p.setOptions({
-                    strokeColor: p.originalConfig.color,
-                    strokeWeight: p.originalConfig.weight || 3,
+        
+            polylines = features.map(feature => {
+                const coords = feature.geometry.coordinates.map(c => ({ lat: c[1], lng: c[0] }));
+                const config = TYPE_CONFIG["BUS"] || { color: "#7F7F7F", weight: 2 };
+        
+                const polyline = new google.maps.Polyline({
+                    path: coords,
+                    geodesic: true,
+                    strokeColor: config.color,
                     strokeOpacity: 0.7,
+                    strokeWeight: config.weight,
+                    map: map,
                     zIndex: 1
                 });
+                return polyline;
             });
-
-            // 2. 同じID（featureId）を持つラインだけを全て強調する
-            polylines.filter(p => p.featureId === id).forEach(p => {
-                p.setOptions({
-                    strokeColor: "#000000", // ハイライト色
-                    strokeWeight: 8,
-                    strokeOpacity: 1.0,
-                    zIndex: 100
-                });
-            });
-
-            selectedFeatureId = id;
-
-            // 3. 情報表示
-            // infoWindow.setContent(`<strong>${properties.name || "名称不明"}</strong>`);
-            // infoWindow.setPosition(latLng);
-            // infoWindow.open(map);
         }
-
 
         let polygons = [];
         async function fetchPolygonsInBounds() {
