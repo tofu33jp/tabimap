@@ -52,7 +52,7 @@
             infoWindow = new google.maps.InfoWindow();
 
             // クラスター管理者の初期化
-            markerCluster = new markerClusterer.MarkerClusterer({ map, markers: [] });
+            markerCluster = new markerClusterer.MarkerClusterer({ map, markers: [], maxZoom: 15 });
 
             // 地図が動いた（ズーム・移動）後のイベント
             map.addListener("idle", () => {
